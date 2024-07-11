@@ -5,4 +5,10 @@ enum ArrowDirection {
 
   /// The arrow is pointing down.
   down,
+
+  /// The arrow is pointing left.
+  left,
+
+  /// The arrow is pointing right.
+  right,
 }

@@ -94,20 +94,15 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
       return;
     }
 
-    final BuildContext? bodyContext = _bodyKey.currentContext;
+    final RenderBox? renderBox =
+        _bodyKey.currentContext!.findRenderObject() as RenderBox?;
 
-    if (bodyContext == null) {
-      return;
-    }
-
-    final RenderBox? bodyRenderBox = bodyContext.findRenderObject() as RenderBox?;
-
-    if (bodyRenderBox == null) {
+    if (renderBox == null) {
       return;
     }
 
     final Offset clickPosition = event.position;
-    final Offset contentPosition = bodyRenderBox.localToGlobal(Offset.zero);
+    final Offset contentPosition = renderBox.localToGlobal(Offset.zero);
 
     switch (widget._dismissTriggerBehavior) {
       case PopupDismissTriggerBehavior.onTapContent:
@@ -173,6 +168,27 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
             ) +
             widget._indicatorOffset +
             _highlightOffset;
+      case ArrowDirection.left:
+        return Offset(
+              _targetWidgetRect.width,
+              _targetWidgetRect.height / 2 - indicatorWidth / 2,
+            ) +
+            widget._indicatorOffset +
+            _highlightOffset;
+      case ArrowDirection.right:
+        return Offset(
+              -widget._indicatorTheme.arrowSize.height,
+              _targetWidgetRect.height / 2 - indicatorWidth / 2,
+            ) +
+            widget._indicatorOffset +
+            _highlightOffset;
+      default:
+        return Offset(
+              _targetWidgetRect.width,
+              _targetWidgetRect.height / 2 - indicatorWidth / 2,
+            ) +
+            widget._indicatorOffset +
+            _highlightOffset;
     }
   }
 
@@ -188,6 +204,10 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
         return Offset(0, highlightVerticalGap);
       case ArrowDirection.down:
         return Offset(0, -highlightVerticalGap);
+      case ArrowDirection.left:
+        return Offset(highlightVerticalGap, 0);
+      case ArrowDirection.right:
+        return Offset(-highlightVerticalGap, 0);
     }
   }
 
@@ -213,18 +233,42 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
           -(contentHeight + widget._indicatorTheme.arrowSize.height),
         );
         break;
+      case ArrowDirection.left:
+        targetCenterOffset = Offset(
+          targetWidth + widget._indicatorTheme.arrowSize.height,
+          (targetHeight / 2 - contentHeight / 2),
+        );
+        break;
+      case ArrowDirection.right:
+        targetCenterOffset = Offset(
+          -(contentWidth + widget._indicatorTheme.arrowSize.height),
+          targetHeight / 2 - contentHeight / 2,
+        );
+        break;
     }
 
     targetCenterOffset += _highlightOffset;
 
     final double contentLeft = contentDxCenter + _targetOffset.dx;
+    final double contentTop = targetCenterOffset.dy + _targetOffset.dy;
     final double contentRight = contentLeft + contentWidth;
+    final double contentBottom = contentTop + contentHeight;
     final double screenWidth = context.screenWidth;
+    final double screenHeight = context.screenHeight;
 
-    if (contentLeft < 0) {
-      targetCenterOffset += Offset(-contentLeft, 0);
-    } else if (contentRight > screenWidth) {
-      targetCenterOffset += Offset(screenWidth - contentRight, 0);
+    if (arrowDirection == ArrowDirection.up ||
+        arrowDirection == ArrowDirection.down) {
+      if (contentLeft < 0) {
+        targetCenterOffset += Offset(-contentLeft, 0);
+      } else if (contentRight > screenWidth) {
+        targetCenterOffset += Offset(screenWidth - contentRight, 0);
+      }
+    } else {
+      if (contentTop < 0) {
+        targetCenterOffset += Offset(0, -contentTop);
+      } else if (contentBottom > screenHeight) {
+        targetCenterOffset += Offset(0, screenHeight - contentBottom);
+      }
     }
 
     return targetCenterOffset + widget._contentOffset;
@@ -321,9 +365,13 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
   double get _contentMaxHeight {
     const int padding = 16;
     final double screenHeight = context.screenHeight;
-    final double bottomPadding = context.mediaQuery.padding.bottom;
+    final double screenWidth = context.screenWidth;
+    final double leftPadding = context.mediaQuery.padding.left;
     final double topPadding = context.mediaQuery.padding.top;
+    final double rightPadding = context.mediaQuery.padding.right;
+    final double bottomPadding = context.mediaQuery.padding.bottom;
     final double targetWidgetTopPosition = _targetWidgetRect.top;
+    final double contentWidth = _contentSize?.width ?? 0;
     final double contentHeight = _contentSize?.height ?? 0;
     final bool isArrowDirectionOverriden = _overridenArrowDirection != null;
 
@@ -358,6 +406,44 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
           _setIndicatorDirection(ArrowDirection.up);
           return 0;
         }
+      case ArrowDirection.left:
+        final double belowSpace = screenHeight -
+            targetWidgetTopPosition -
+            _targetWidgetRect.height -
+            padding -
+            bottomPadding;
+        final double aboveSpace = targetWidgetTopPosition - topPadding;
+
+        if (!widget._indicatorTheme.enabledAutoArrowDirection) {
+          return belowSpace + aboveSpace;
+        }
+
+        if (((belowSpace + aboveSpace) - contentHeight) > 0 ||
+            isArrowDirectionOverriden) {
+          return belowSpace + aboveSpace;
+        } else {
+          _setIndicatorDirection(ArrowDirection.right);
+          return 0;
+        }
+      case ArrowDirection.right:
+        final double belowSpace = screenHeight -
+            targetWidgetTopPosition -
+            _targetWidgetRect.height -
+            padding -
+            bottomPadding;
+        final double aboveSpace = targetWidgetTopPosition - topPadding;
+
+        if (!widget._indicatorTheme.enabledAutoArrowDirection) {
+          return belowSpace + aboveSpace;
+        }
+
+        if (((belowSpace + aboveSpace) - contentHeight) > 0 ||
+            isArrowDirectionOverriden) {
+          return belowSpace + aboveSpace;
+        } else {
+          _setIndicatorDirection(ArrowDirection.left);
+          return 0;
+        }
     }
   }
 
@@ -377,10 +463,6 @@ class _OverlayInfoPopupState extends State<OverlayInfoPopup> {
   }
 
   Offset get _targetOffset {
-    if (!widget._targetRenderBox.attached) {
-      return Offset.zero;
-    }
-
     return widget._targetRenderBox.localToGlobal(Offset.zero);
   }
 
